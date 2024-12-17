@@ -2,67 +2,56 @@ import numpy as np
 
 class KalmanFilterWithAuxiliaryFactors:
     """
-    Класс для реализации фильтра Калмана с дополнительными факторами.
+    Реализация расширенного Калмановского фильтра для оценки латентных факторов.
     """
-    def __init__(self, F, H, Q, R, X_0, P_0):
+    def __init__(self, A, H, F_0, P_0, Q, R):
         """
         Инициализация фильтра.
 
         Аргументы:
-            F (ndarray): Матрица перехода состояния.
-            H (ndarray): Матрица наблюдений.
-            Q (ndarray): Ковариационная матрица шума процесса.
-            R (ndarray): Ковариационная матрица шума измерений.
-            X_0 (ndarray): Начальная оценка состояния.
-            P_0 (ndarray): Начальная ковариационная матрица.
+            A (ndarray): Матрица перехода состояния (k x k).
+            H (ndarray): Матрица наблюдений (m x k).
+            F_0 (ndarray): Начальная оценка латентных факторов (k x 1).
+            P_0 (ndarray): Начальная ковариационная матрица (k x k).
+            Q (ndarray): Ковариационная матрица шума процесса (k x k).
+            R (ndarray): Ковариационная матрица шума измерений (m x m).
         """
-        self.F = F
+        self.A = A
         self.H = H
+        self.x = F_0.flatten()  # Текущее состояние (латентные факторы)
+        self.P = P_0  # Текущая ковариационная матрица
         self.Q = Q
         self.R = R
-        self.x = X_0
-        self.P = P_0
 
     def predict(self):
         """
         Шаг предсказания.
-        """
-        self.x = self.F @ self.x
-        self.P = self.F @ self.P @ self.F.T + self.Q
 
-    def update(self, Y, Z):
+        Возвращает:
+            tuple: Предсказанное состояние (x_pred) и ковариационная матрица (P_pred).
+        """
+        self.x = self.A @ self.x
+        self.P = self.A @ self.P @ self.A.T + self.Q
+        return self.x, self.P
+
+    def update(self, y):
         """
         Шаг обновления.
 
         Аргументы:
-            Y (ndarray): Наблюдаемые целевые данные (размерность m_Y).
-            Z (ndarray): Наблюдаемые дополнительные данные (размерность m_Z).
+            y (ndarray): Наблюдаемое значение в текущий момент времени (размерность m).
+
+        Возвращает:
+            tuple: Обновленное состояние (x) и ковариационная матрица (P).
         """
+        # Вычисление коэффициента Калмана
+        S = self.H @ self.P @ self.H.T + self.R  # Ковариация инноваций
+        K = self.P @ self.H.T @ np.linalg.inv(S)  # Коэффициент Калмана
 
-        Y_combined = np.hstack((Y, Z))
+        # Обновление состояния
+        innovation = y - self.H @ self.x  # Инновация
+        self.x = self.x + K @ innovation
 
-        S = self.H @ self.P @ self.H.T + self.R
-        K = self.P @ self.H.T @ np.linalg.inv(S)
-
-        self.x = self.x + K @ (Y_combined - self.H @ self.x)
-
+        # Обновление ковариационной матрицы
         self.P = (np.eye(self.P.shape[0]) - K @ self.H) @ self.P
-
-    def predict_future(self, steps):
-        predictions = []
-        x_pred = self.x.copy()
-        P_pred = self.P.copy()
-
-        for _ in range(steps):
-            x_pred = self.F @ x_pred
-            P_pred = self.F @ P_pred @ self.F.T + self.Q
-
-            predictions.append(x_pred.copy())
-
-        return np.array(predictions)        
-
-    def get_state(self):
-        """
-        Возвращает текущее состояние.
-        """
-        return self.x
+        return self.x, self.P

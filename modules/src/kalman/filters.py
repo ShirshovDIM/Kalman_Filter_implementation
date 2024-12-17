@@ -47,7 +47,6 @@ class BaseKalmanFilter:
         self.x = self.x + np.dot(K, y)
 
         # Обновление ковариации ошибки
-        self.I = np.eye(self.P.shape[0])  # Единичная матрица
         self.P = np.dot(self.I - np.dot(K, self.H), self.P)
 
     def get_state(self):

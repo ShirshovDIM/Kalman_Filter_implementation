@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
+from typing import Union, Literal, Optional
 
 ## Инициализация + оптимизация параметров
-
-def generate_kalman_matrices_from_timeseries_old(data):
+def generate_kalman_matrices_from_timeseries_old(data, state_dimension=1, initial_estimation_error_scale = 1.0):
     """
     Генерация матриц F, H, Q, R, P и вектора x0 из временного ряда данных.
 
@@ -13,29 +13,37 @@ def generate_kalman_matrices_from_timeseries_old(data):
     Возвращает:
         dict: Словарь с матрицами F, H, Q, R, P, x0 и d (размерность измерений).
     """
-    # Удаление строк с NaN значениями
-    data = data.dropna()
 
-    # Инициализация
-    num_features = data.shape[1]
+    T, m = data.shape 
+    n = state_dimension  
 
-    # Матрица перехода состояния F (первоначально единичная, затем можно адаптировать)
-    F = np.eye(num_features)
+    # 2. Инициализация F (матрица перехода состояния)
+    F = np.zeros((n, n))
+
+    # Оценка временных зависимостей с помощью AR модели для первых m переменных
+    for i in range(m):
+        if i == 0:
+            F[i, i] = 1 
+        elif i > 0:
+            F[i, i - 1] = 1  # Коэффициенты перехода между состояниями
+    if n > m:
+        F[m:, m:] = np.eye(n - m)  # Остальные состояния как латентные
 
     # Матрица наблюдений H (выбираем только наблюдаемые признаки, например, закрытие цен)
-    H = np.zeros((1, num_features))
+    H = np.zeros((m, n))
     for i, col in enumerate(data.columns):
         if 'close' in col.lower():
-            H[0, i] = 1
+            H[:, i] = 1
 
     # Ковариационная матрица шума процесса Q (на основе дисперсий)
     Q = np.diag(data.var())
 
     # Ковариационная матрица шума измерений R (на основе наблюдаемых данных)
-    R = np.array([[data.filter(like='close').var().mean()]])
+    errors = data - data.mean()
+    R = np.array(errors.cov())
 
     # Ковариационная матрица ошибки оценки P (начальная, единичная или с адаптацией)
-    P = np.eye(num_features)
+    P = initial_estimation_error_scale * np.eye(n)
 
     # Вектор начального состояния x0 (первая строка данных)
     x0 = data.iloc[0].to_numpy()
@@ -289,4 +297,4 @@ def optimize_kalman_parameters(Z, Q_init, R_init, x_init, P_init, epsilon=1e-6, 
         return {
             'Q_opt': Q,
             'R_opt': R
-        }
+        }     
