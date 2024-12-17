@@ -24,8 +24,13 @@ def generate_kalman_matrices_from_timeseries_old(data, state_dimension=1, initia
     for i in range(m):
         if i == 0:
             F[i, i] = 1 
+
+        elif i == 1:
+            F[i, i] = 1 
+            F[i-1, i] = 1
+
         elif i > 0:
-            F[i, i - 1] = 1  # Коэффициенты перехода между состояниями
+            F[i-1, i] = 1  # Коэффициенты перехода между состояниями
     if n > m:
         F[m:, m:] = np.eye(n - m)  # Остальные состояния как латентные
 
